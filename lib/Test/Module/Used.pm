@@ -5,14 +5,14 @@ use warnings;
 use File::Find;
 use File::Spec::Functions qw(catfile);
 use Module::Used qw(modules_used_in_files);
-use PPI::Document;
 use Module::CoreList;
 use YAML;
 use Test::Builder;
 use List::MoreUtils qw(any);
+use Perl::MinimumVersion;
 
 use 5.008;
-our $VERSION = '0.0.2';
+our $VERSION = '0.0.3';
 
 =head1 NAME
 
@@ -32,7 +32,9 @@ Test::Module::Used - Test dependency between module and META.yml
 
 =head1 DESCRIPTION
 
-Test dependency between module and META.yml
+Test dependency between module and META.yml.
+
+This module reads I<META.yml> and get I<build_requires> and I<requires>. It compares required module is really used and used module is really required.
 
 =cut
 
@@ -45,7 +47,7 @@ Test dependency between module and META.yml
 
 create new instance
 
-all parameters are specified by hash-style, and optional.
+all parameters are passed by hash-style, and optional.
 
 in ordinary use.
 
@@ -61,10 +63,12 @@ all parameter is as follows.(specified values are default)
     test_dir     => ['t'],       # directory(ies) which contains test scripts.
     module_dir   => ['lib'],     # directory(ies) which contains modules.
     meta_file    => 'META.yml',  # META.yml (contains module requirement information)
-    perl_version => '5.008',     # expected perl version
+    perl_version => '5.008',     # expected perl version which is used for ignore core-modules in testing
     exclude_in_testdir => [],    # ignored module(s) for test even if it is used.
     exclude_in_moduledir => [],  # ignored module(s) for your module(lib) even if it is used.
   );
+
+if your module source contains I<use 5.XXX> statement, I<perl_version> passed in constructor is ignored (prior to use version in module source code).
 
 =cut
 
@@ -126,16 +130,24 @@ sub ok {
     my @requires_in_test = _remove_core($version,
                                         $self->_build_requires(@{$self->{exclude_in_moduledir}}));
 
-    $test->plan(tests => @used_in_lib + @requires_in_lib + @used_in_test + @requires_in_test);
-    my $status_requires_ok = $self->_requires_ok($test,
-                                                 $version,
-                                                 \@used_in_lib,
-                                                 \@requires_in_lib);
-    my $status_build_requires_ok = $self->_requires_ok($test,
-                                                       $version,
-                                                       \@used_in_test,
-                                                       \@requires_in_test);
-    return $status_requires_ok && $status_build_requires_ok;
+    my $num_tests = @used_in_lib + @requires_in_lib + @used_in_test + @requires_in_test;
+    if ( $num_tests > 0 ) {
+        $test->plan(tests => $num_tests);
+        my $status_requires_ok = $self->_requires_ok($test,
+                                                     $version,
+                                                     \@used_in_lib,
+                                                     \@requires_in_lib);
+        my $status_build_requires_ok = $self->_requires_ok($test,
+                                                           $version,
+                                                           \@used_in_test,
+                                                           \@requires_in_test);
+        return $status_requires_ok && $status_build_requires_ok;
+    }
+    else {
+        $test->plan(tests => 1);
+        $test->ok(1, "no tests run");
+        return 1;
+    }
 }
 
 sub _requires_ok {
@@ -232,17 +244,14 @@ sub _array_difference {
 
 sub _version_from_file {
     my $self = shift;
-    my $version;
+
+    my $highest_version;
     for my $file ( $self->_module_files() ) {
-        my $doc = PPI::Document->new($file);
-        for my $item ( @{$doc->find('PPI::Statement::Include')} ) {
-            for my $token ( @{$item->{children}} ) {
-                next if ( !$token->isa('PPI::Token::Number::Float') );
-                $version = $token->content;
-            }
-        }
+        my $minimum_version = Perl::MinimumVersion->new($file);
+        my $version = $minimum_version->minimum_explicit_version;
+        $highest_version = $version if ( !defined $highest_version || $version > $highest_version );
     }
-    return $version;
+    return $highest_version;
 }
 
 sub _remove_core {
@@ -266,13 +275,15 @@ sub _read_meta_yml {
 sub _build_requires {
     my $self = shift;
     $self->_read_meta_yml if !defined $self->{build_requires};
-    return sort keys %{$self->{build_requires}};
+    my @result = sort keys %{$self->{build_requires}};
+    return @result;
 }
 
 sub _requires {
     my $self = shift;
     $self->_read_meta_yml if !defined $self->{requires};
-    return sort keys %{$self->{requires}}
+    my @result = sort keys %{$self->{requires}};
+    return @result;
 }
 
 1;
@@ -280,7 +291,7 @@ __END__
 
 =head1 AUTHOR
 
-Takuya Tsuchida E<lt>tsucchi@cpan.org<gt>
+Takuya Tsuchida E<lt>tsucchi@cpan.orgE<gt>
 
 =head1 SEE ALSO
 

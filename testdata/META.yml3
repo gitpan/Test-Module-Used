@@ -1,10 +1,10 @@
 ---
-abstract: 'Test dependency between module and META.yml'
+abstract: 'write description here'
 author:
-  - 'Takuya Tsuchida tsucchi@cpan.org'
+  - 'Takuya Tsuchida E<lt>takuya.tsuchida@gmail.com<gt>'
 build_requires:
   ExtUtils::MakeMaker: 6.42
-  Test::More: 0
+  Test::More: 0.88
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
@@ -13,20 +13,14 @@ license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
-name: Test-Module-Used
+name: My-Test
 no_index:
   directory:
     - inc
     - t
-    - testdata
     - xt
 requires:
-  List::MoreUtils: 0
-  Module::CoreList: 0
-  Module::Used: 0
-  Perl::MinimumVersion: 0
-  YAML: 0
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.0.3
+version: 0.0.1
