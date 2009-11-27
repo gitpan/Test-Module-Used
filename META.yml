@@ -1,5 +1,5 @@
 ---
-abstract: 'Test dependency between module and META.yml'
+abstract: 'Test required module is really used and vice versa bitween lib/t and META.yml'
 author:
   - 'Takuya Tsuchida tsucchi@cpan.org'
 build_requires:
@@ -29,4 +29,4 @@ requires:
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.0.3
+version: 0.0.4
