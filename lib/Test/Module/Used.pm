@@ -9,10 +9,11 @@ use Module::CoreList;
 use YAML;
 use Test::Builder;
 use List::MoreUtils qw(any);
+use List::Util qw(max);
 use Perl::MinimumVersion;
 
 use 5.008;
-our $VERSION = '0.0.5';
+our $VERSION = '0.0.6';
 
 =head1 NAME
 
@@ -57,7 +58,7 @@ in ordinary use.
 
 use I<exclude_in_testdir>. If this parameter is specified. Test::Module::Used ignore modules used in testdir.
 
-all parameter is as follows.(specified values are default)
+all parameters are as follows.(specified values are default)
 
   my $used = Test::Module::Used->new(
     test_dir     => ['t'],            # directory(ies) which contains test scripts.
@@ -82,10 +83,10 @@ sub new {
         module_dir   => $opt{module_dir}   || ['lib'],
         meta_file    => $opt{meta_file}    || 'META.yml',
         perl_version => $opt{perl_version} || '5.008',
-        exclude_in_testdir => $opt{exclude_in_testdir} || [],
-        exclude_in_moduledir => $opt{exclude_in_moduledir} || [],
+        exclude_in_testdir        => $opt{exclude_in_testdir}        || [],
+        exclude_in_moduledir      => $opt{exclude_in_moduledir}      || [],
         exclude_in_build_requires => $opt{exclude_in_build_requires} || [],
-        exclude_in_requires => $opt{exclude_in_requires} || [],
+        exclude_in_requires       => $opt{exclude_in_requires}       || [],
     };
     bless $self, $class;
 }
@@ -124,26 +125,16 @@ First, This module reads I<META.yml> and get I<build_requires> and I<requires>. 
 sub ok {
     my $self = shift;
     my $test = Test::Builder->new();
-    my $version = $self->_version_from_file || $self->_perl_version;
 
-    my @used_in_lib     = _remove_core($version,
-                                       $self->_used_modules);
-    my @requires_in_lib = _remove_core($version, $self->_requires);
-
-    my @used_in_test = _remove_core($version,
-                                    $self->_used_modules_in_test);
-    my @requires_in_test = _remove_core($version,
-                                        $self->_build_requires);
-
-    my $num_tests = @used_in_lib + @requires_in_lib + @used_in_test + @requires_in_test;
+    my $num_tests = $self->_num_tests();
     if ( $num_tests > 0 ) {
         $test->plan(tests => $num_tests);
-        my $status_requires_ok = $self->_requires_ok($test,
-                                                     \@used_in_lib,
-                                                     \@requires_in_lib);
+        my $status_requires_ok       = $self->_requires_ok($test,
+                                                           [$self->_remove_core($self->_used_modules)],
+                                                           [$self->_remove_core($self->_requires)]);
         my $status_build_requires_ok = $self->_requires_ok($test,
-                                                           \@used_in_test,
-                                                           \@requires_in_test);
+                                                           [$self->_remove_core($self->_used_modules_in_test)],
+                                                           [$self->_remove_core($self->_build_requires)]);
         return $status_requires_ok && $status_build_requires_ok;
     }
     else {
@@ -151,6 +142,23 @@ sub ok {
         $test->ok(1, "no tests run");
         return 1;
     }
+}
+
+sub _version {
+    my $self = shift;
+    if ( !defined $self->{version} ) {
+        $self->{version} = $self->_version_from_file || $self->_perl_version;
+    }
+    return $self->{version};
+}
+
+sub _num_tests {
+    my $self = shift;
+
+    return $self->_remove_core($self->_used_modules) +
+           $self->_remove_core($self->_requires) +
+           $self->_remove_core($self->_used_modules_in_test) +
+           $self->_remove_core($self->_build_requires);
 }
 
 sub _requires_ok {
@@ -202,12 +210,15 @@ sub _check_used_but_not_required {
 
 sub _module_files {
     my $self = shift;
-    my @result;
-    find( sub {
-              push @result, catfile($File::Find::dir, $_) if ( $_ =~ /\.pm$/ );
-          },
-          @{$self->_module_dir});
-    return @result;
+    if ( !defined $self->{module_files} ) {
+        my @files;
+        find( sub {
+                  push @files, catfile($File::Find::dir, $_) if ( $_ =~ /\.pm$/ );
+              },
+              @{$self->_module_dir});
+        $self->{module_files} = \@files;
+    }
+    return @{$self->{module_files}};
 }
 
 sub _test_files {
@@ -222,16 +233,22 @@ sub _test_files {
 
 sub _used_modules {
     my $self = shift;
-    my @excludes = @{$self->{exclude_in_moduledir}};
-    my @result = modules_used_in_files( $self->_module_files() );
-    return _array_difference(\@result, \@excludes);
+    if ( !defined $self->{used_modules} ) {
+        my @used = modules_used_in_files( $self->_module_files() );
+        my @result = _array_difference(\@used, $self->{exclude_in_moduledir});
+        $self->{used_modules} = \@result;
+    }
+    return @{$self->{used_modules}};
 }
 
 sub _used_modules_in_test {
     my $self = shift;
-    my @excludes = @{$self->{exclude_in_testdir}};
-    my @result = modules_used_in_files( $self->_test_files() );
-    return _array_difference(\@result, \@excludes);
+    if ( !defined $self->{used_modules_in_test} ) {
+        my @used = modules_used_in_files( $self->_test_files() );
+        my @result = _array_difference(\@used, $self->{exclude_in_testdir});
+        $self->{used_modules_in_test} = \@result;
+    }
+    return @{$self->{used_modules_in_test}};
 }
 
 sub _array_difference {
@@ -248,23 +265,25 @@ sub _array_difference {
 sub _version_from_file {
     my $self = shift;
 
-    my $highest_version;
-    for my $file ( $self->_module_files() ) {
-        my $minimum_version = Perl::MinimumVersion->new($file);
-        my $version = $minimum_version->minimum_explicit_version;
-        $highest_version = $version if ( !defined $highest_version || $version > $highest_version );
-    }
-    return $highest_version;
+    my $version = max map {
+        my $minimum_version = Perl::MinimumVersion->new($_);
+        $minimum_version->minimum_explicit_version;
+    } $self->_module_files();
+    return $version;
 }
 
 sub _remove_core {
-    my( $version, @modules ) = @_;
-    my @result;
-    for my $module ( @modules ) {
-        my $first_release = Module::CoreList->first_release($module);
-        push @result, $module if ( !defined $first_release || $first_release >= $version );
-    }
+    my $self = shift;
+    my( @module_names ) = @_;
+    my @result = grep {  !$self->_is_core_module($_) } @module_names;
     return @result;
+}
+
+sub _is_core_module {
+    my $self = shift;
+    my($module_name) = @_;
+    my $first_release = Module::CoreList->first_release($module_name);
+    return defined $first_release && $first_release <= $self->_version;
 }
 
 sub _read_meta_yml {
@@ -277,20 +296,18 @@ sub _read_meta_yml {
 
 sub _build_requires {
     my $self = shift;
-    my @excludes = @{$self->{exclude_in_build_requires}};
 
     $self->_read_meta_yml if !defined $self->{build_requires};
     my @result = sort keys %{$self->{build_requires}};
-    return _array_difference(\@result, \@excludes);
+    return _array_difference(\@result, $self->{exclude_in_build_requires});
 }
 
 sub _requires {
     my $self = shift;
-    my @excludes = @{$self->{exclude_in_requires}};
 
     $self->_read_meta_yml if !defined $self->{requires};
     my @result = sort keys %{$self->{requires}};
-    return _array_difference(\@result, \@excludes);
+    return _array_difference(\@result, $self->{exclude_in_requires});
 }
 
 1;
