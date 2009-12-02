@@ -24,9 +24,10 @@ requires:
   List::MoreUtils: 0
   Module::CoreList: 0
   Module::Used: 0
+  PPI::Document: 0
   Perl::MinimumVersion: 0
   YAML: 0
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.0.7
+version: 0.0.8

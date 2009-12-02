@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 use strict;
 use warnings;
-use Test::More tests=>10;
+use Test::More tests=>12;
 use File::Spec::Functions qw(catfile);
 use Test::Module::Used;
 
@@ -13,7 +13,7 @@ my $used = Test::Module::Used->new(
 is_deeply([$used->_module_files], [catfile('testdata', 'lib', 'SampleModule.pm')]);
 is_deeply([$used->_test_files],   [catfile('testdata', 't', '001_test.t')]);
 is_deeply([$used->_used_modules()], [qw(Net::FTP Module::Used Test::Module::Used)]);
-is_deeply([$used->_used_modules_in_test()], [qw(Test::More Test::Class SampleModule)]);
+is_deeply([$used->_used_modules_in_test()], [qw(Test::More Test::Class)]);# SampleModule is ignored
 is($used->_version_from_file(), '5.00803'); # perl version specified in testdatalib/SampleModule.pm
 is($used->_version, '5.00803');# used version
 
@@ -38,3 +38,14 @@ my $used3 = Test::Module::Used->new(
     test_dir   => ['testdata/t'],
 );
 ok( !$used3->_version_from_file );
+
+
+# exclude after constructed
+my $used4 = Test::Module::Used->new(
+    module_dir => ['testdata/lib'],
+    test_dir   => ['testdata/t'],
+);
+$used4->push_exclude_in_moduledir(qw(Module::Used Net::FTP));
+is_deeply([$used4->_used_modules()], [qw(Test::Module::Used)]);
+$used4->push_exclude_in_testdir( qw(Test::More Test::Class) );
+is_deeply([$used4->_used_modules_in_test()], []);
