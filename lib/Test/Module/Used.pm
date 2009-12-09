@@ -14,7 +14,7 @@ use Perl::MinimumVersion;
 use PPI::Document;
 
 use 5.008;
-our $VERSION = '0.1.1';
+our $VERSION = '0.1.2';
 
 =head1 NAME
 
@@ -58,37 +58,45 @@ all parameters are as follows.(specified values are default, except I<exclude_in
 
   my $used = Test::Module::Used->new(
     test_dir     => ['t'],            # directory(ies) which contains test scripts.
-    module_dir   => ['lib'],          # directory(ies) which contains modules.
+    lib_dir      => ['lib'],          # directory(ies) which contains module libs.
+    test_lib_dir => ['t'],            # directory(ies) which contains libs used ONLY in test (ex. MockObject for test)
     meta_file    => 'META.yml',       # META.yml (contains module requirement information)
     perl_version => '5.008',          # expected perl version which is used for ignore core-modules in testing
     exclude_in_testdir => [],         # ignored module(s) for test even if it is used.
-    exclude_in_moduledir => [],       # ignored module(s) for your module(lib) even if it is used.
+    exclude_in_libdir   => [],        # ignored module(s) for your lib even if it is used.
     exclude_in_build_requires => [],  # ignored module(s) even if it is written in build_requires of META.yml.
     exclude_in_requires => [],        # ignored module(s) even if it is written in requires of META.yml.
   );
 
 if your module source contains I<use 5.XXX> statement, I<perl_version> passed in constructor is ignored (prior to use version in module source code).
 
-I<exclude_in_testdir> is automatically set by default. This module reads I<module_dir> and parse "pacakge" statement, then found "package" statements and myself(Test::Module::Used) is set.
-I<exclude_in_moduledir> is also automatically set by default. This module reads I<module_dir> and parse "package" statement, found "package" statement are set.(Test::Module::Used isnt included)
+I<exclude_in_testdir> is automatically set by default. This module reads I<lib_dir> and parse "pacakge" statement, then found "package" statements and myself(Test::Module::Used) is set.
+I<exclude_in_libdir> is also automatically set by default. This module reads I<lib_dir> and parse "package" statement, found "package" statement are set.(Test::Module::Used isnt included)
+
+note1: parameter I<module_dir> is deprecated, use I<lib_dir>.
+note2: parameter I<exclude_in_moduledir> is deprecated, use I<exclude_in_libdir>.
+
+deprecated parameters work currently, but It will be deleted in future release.
 
 =cut
+
 
 sub new {
     my $class = shift;
     my (%opt) = @_;
     my $self = {
         test_dir     => $opt{test_dir}     || ['t'],
-        module_dir   => $opt{module_dir}   || ['lib'],
+        lib_dir      => $opt{lib_dir}      || $opt{module_dir} || ['lib'],
+        test_lib_dir => $opt{test_lib_dir} || ['t'],
         meta_file    => $opt{meta_file}    || 'META.yml',
         perl_version => $opt{perl_version} || '5.008',
-        exclude_in_testdir        => $opt{exclude_in_testdir}        || [],
-        exclude_in_moduledir      => $opt{exclude_in_moduledir}      || [],
+        exclude_in_testdir        => $opt{exclude_in_testdir},
+        exclude_in_libdir         => $opt{exclude_in_libdir}         || $opt{exclude_in_moduledir},
         exclude_in_build_requires => $opt{exclude_in_build_requires} || [],
         exclude_in_requires       => $opt{exclude_in_requires}       || [],
     };
     bless $self, $class;
-    $self->_get_packages(%opt);
+    $self->_get_packages();
     return $self;
 }
 
@@ -97,8 +105,12 @@ sub _test_dir {
     return shift->{test_dir};
 }
 
-sub _module_dir {
-    return shift->{module_dir};
+sub _lib_dir {
+    return shift->{lib_dir};
+}
+
+sub _test_lib_dir {
+    return shift->{test_lib_dir};
 }
 
 sub _meta_file {
@@ -146,24 +158,37 @@ sub ok {
     }
 }
 
-=head2 push_exclude_in_moduledir( @exclude_module_names )
+=head2 push_exclude_in_libdir( @exclude_module_names )
 
 add ignored module(s) for your module(lib) even if it is used after new()'ed.
-this is usable if you want to use auto set feature for I<exclude_in_moduledir> but manually specify exclude modules.
+this is usable if you want to use auto set feature for I<exclude_in_libdir> but manually specify exclude modules.
 
 For example,
 
- my $used = Test::Module::Used->new(); #automatically set exclude_in_moduledir
- $used->push_exclude_in_moduledir( qw(Some::Module::Which::You::Want::To::Exclude) );#module(s) which you want to exclude
+ my $used = Test::Module::Used->new(); #automatically set exclude_in_libdir
+ $used->push_exclude_in_libdir( qw(Some::Module::Which::You::Want::To::Exclude) );#module(s) which you want to exclude
  $used->ok(); #do test
+
+=cut
+
+sub push_exclude_in_libdir {
+    my $self = shift;
+    my @exclude_module_names = @_;
+    push @{$self->{exclude_in_libdir}},@exclude_module_names;
+}
+
+
+=head2 push_exclude_in_moduledir( @exclude_module_names )
+
+deprecated, use push_exclude_in_libdir.
 
 =cut
 
 sub push_exclude_in_moduledir {
     my $self = shift;
-    my @exclude_module_names = @_;
-    push @{$self->{exclude_in_moduledir}},@exclude_module_names;
+    $self->push_exclude_in_libdir(@_);
 }
+
 
 =head2 push_exclude_in_testdir( @exclude_module_names )
 
@@ -195,10 +220,10 @@ sub _version {
 sub _num_tests {
     my $self = shift;
 
-    return $self->_remove_core($self->_used_modules) +
-           $self->_remove_core($self->_requires) +
-           $self->_remove_core($self->_used_modules_in_test) +
-           $self->_remove_core($self->_build_requires);
+    return scalar($self->_remove_core($self->_used_modules,
+                                      $self->_requires,
+                                      $self->_used_modules_in_test,
+                                      $self->_build_requires));
 }
 
 sub _requires_ok {
@@ -248,34 +273,45 @@ sub _check_used_but_not_required {
     return $result;
 }
 
-sub _module_files {
+sub _pm_files {
     my $self = shift;
-    if ( !defined $self->{module_files} ) {
-        my @files;
-        find( sub {
-                  push @files, catfile($File::Find::dir, $_) if ( $_ =~ /\.pm$/ );
-              },
-              @{$self->_module_dir});
-        $self->{module_files} = \@files;
+    if ( !defined $self->{pm_files} ) {
+        my @files = $self->_find_files_by_ext($self->_lib_dir, qr/\.pm$/);
+        $self->{pm_files} = \@files;
     }
-    return @{$self->{module_files}};
+    return @{$self->{pm_files}};
+}
+
+sub _pm_files_in_test {
+    my $self = shift;
+    if ( !defined $self->{pm_files_in_test} ) {
+        my @files = $self->_find_files_by_ext($self->_test_lib_dir, qr/\.pm$/);
+        $self->{pm_files_in_test} = \@files;
+    }
+    return @{$self->{pm_files_in_test}};
 }
 
 sub _test_files {
     my $self = shift;
+    return $self->_find_files_by_ext($self->_test_dir, qr/\.t$/);
+}
+
+sub _find_files_by_ext {
+    my $self = shift;
+    my ($start_dirs_aref, $ext_qr) = @_;
     my @result;
     find( sub {
-              push @result, catfile($File::Find::dir, $_) if ( $_ =~ /\.t$/ );
+              push @result, catfile($File::Find::dir, $_) if ( $_ =~ $ext_qr );
           },
-          @{$self->_test_dir});
+          @{$start_dirs_aref});
     return @result;
 }
 
 sub _used_modules {
     my $self = shift;
     if ( !defined $self->{used_modules} ) {
-        my @used = map { modules_used_in_document($self->_ppi_for($_)) } $self->_module_files;
-        my @result = _array_difference(\@used, $self->{exclude_in_moduledir});
+        my @used = map { modules_used_in_document($self->_ppi_for($_)) } $self->_pm_files;
+        my @result = _array_difference(\@used, $self->{exclude_in_libdir});
         $self->{used_modules} = \@result;
     }
     return @{$self->{used_modules}};
@@ -310,7 +346,7 @@ sub _version_from_file {
             $self->_ppi_for($_)
         );
         $minimum_version->minimum_explicit_version || 0;
-    } $self->_module_files();
+    } $self->_pm_files();
     return $version;
 }
 
@@ -355,28 +391,38 @@ sub _requires {
 # find package statements in lib
 sub _get_packages {
     my $self = shift;
-    my ( %arg ) = @_;
-    my @packages = $self->_packages_from_file;
-    my @exclude_in_testdir = @packages;
-    unshift @exclude_in_testdir, __PACKAGE__;
-    $self->{exclude_in_testdir} = \@exclude_in_testdir if ( !exists $arg{exclude_in_testdir} );
-    $self->{exclude_in_moduledir} = \@packages         if ( !exists $arg{exclude_in_moduledir} );
-    return @packages;
+    my @packages = $self->_packages_in( $self->_pm_files );
+    my @exclude_in_testdir = (__PACKAGE__, @packages, $self->_packages_in($self->_pm_files_in_test));
+    $self->push_exclude_in_testdir(@exclude_in_testdir) if ( !defined $self->{exclude_in_testdir} );
+    $self->push_exclude_in_libdir(@packages)            if ( !defined $self->{exclude_in_libdir} );
 }
 
-sub _packages_from_file {
+sub _packages_in {
     my $self = shift;
+    my ( @filenames ) = @_;
+
     my @result;
-    for my $file ( $self->_module_files ) {
-        my $doc = $self->_ppi_for($file);
-        my $packages = $doc->find('PPI::Statement::Package');
-        next if ( $packages eq '' );
-        for my $item ( @{$packages} ) {
-            for my $token ( @{$item->{children}} ) {
-                next if ( !$token->isa('PPI::Token::Word') );
-                next if ( $token->content eq 'package' );
-                push @result, $token->content;
-            }
+    for my $filename ( @filenames ) {
+        my @packages = $self->_packages_in_file($filename);
+        push @result, @packages;
+    }
+    return @result;
+}
+
+sub _packages_in_file {
+    my $self = shift;
+    my ( $filename ) = @_;
+
+    my $doc = $self->_ppi_for($filename);
+    my $packages = $doc->find('PPI::Statement::Package');
+    return if ( $packages eq '' );
+
+    my @result;
+    for my $item ( @{$packages} ) {
+        for my $token ( @{$item->{children}} ) {
+            next if ( !$token->isa('PPI::Token::Word') );
+            next if ( $token->content eq 'package' );
+            push @result, $token->content;
         }
     }
     return @result;
