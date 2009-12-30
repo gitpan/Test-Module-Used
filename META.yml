@@ -27,7 +27,7 @@ requires:
   PPI::Document: 0
   YAML: 0
   perl: 5.8.0
-  version: 0.74
+  version: 0.77
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.1.4
+version: 0.1.5
