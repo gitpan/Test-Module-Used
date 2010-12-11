@@ -1,14 +1,15 @@
 ---
-abstract: 'Test required module is really used and vice versa bitween lib/t and META.yml'
+abstract: 'Test dependency between module and META.yml'
 author:
   - 'Takuya Tsuchida tsucchi@cpan.org'
 build_requires:
   ExtUtils::MakeMaker: 6.42
-  Test::More: 0
+  Test::More: 0.88
+  Test::Class: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 1.00'
+generated_by: 'Module::Install version 0.91'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -18,17 +19,12 @@ no_index:
   directory:
     - inc
     - t
-    - testdata
     - xt
 requires:
-  CPAN::Meta: 0
-  List::MoreUtils: 0
-  Module::CoreList: 0
   Module::Used: 0
-  PPI::Document: 0
+  Test::Module::Used: 0
+  Plack: 0
   perl: 5.8.0
-  version: 0.77
 resources:
   license: http://dev.perl.org/licenses/
-  repository: http://github.com/tsucchi/Test-Module-Used
-version: 0.2.1_03
+version: 0.0.1
