@@ -4,6 +4,7 @@ author:
   - 'Takuya Tsuchida tsucchi@cpan.org'
 build_requires:
   ExtUtils::MakeMaker: 6.42
+  Test::Builder::Tester: 0
   Test::More: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.42
@@ -31,4 +32,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/tsucchi/Test-Module-Used
-version: 0.2.1_03
+version: 0.2.1_04
