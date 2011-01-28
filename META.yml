@@ -32,4 +32,4 @@ requires:
 resources:
   license: http://dev.perl.org/licenses/
   repository: http://github.com/tsucchi/Test-Module-Used
-version: 0.2.2
+version: 0.2.3

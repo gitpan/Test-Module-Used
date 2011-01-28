@@ -35,10 +35,10 @@ testdata/lib/SampleModule.pm
 testdata/lib2/My/Test.pm
 testdata/META.json
 testdata/META.yml
-testdata/META.yml2
-testdata/META.yml3
-testdata/META.yml4
-testdata/META.yml5
+testdata/META2.yml
+testdata/META3.yml
+testdata/META4.yml
+testdata/META5.yml
 testdata/t/001_test.t
 testdata/t2/001_use_ok.t
 testdata/t2/lib/My/Test2.pm
