@@ -13,7 +13,7 @@ use version;
 use CPAN::Meta;
 use Carp;
 use 5.008;
-our $VERSION = '0.2.3';
+our $VERSION = '0.2.4';
 
 =head1 NAME
 
@@ -435,7 +435,8 @@ sub _array_difference {
     for my $a2 ( @a2 ) {
         @a1 = grep { $_ ne $a2 } @a1;
     }
-    return @a1;
+    my @result = sort @a1;
+    return @result;
 }
 
 sub _version_from_meta {
@@ -573,7 +574,7 @@ L<http://github.com/tsucchi/Test-Module-Used>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2008-2011 Takuya Tsuchida
+Copyright (c) 2008-2012 Takuya Tsuchida
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.
