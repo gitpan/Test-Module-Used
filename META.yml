@@ -17,6 +17,7 @@ meta-spec:
 name: Test-Module-Used
 no_index:
   directory:
+    - testdata
     - t
     - xt
     - inc
@@ -28,7 +29,7 @@ no_index:
 provides:
   Test::Module::Used:
     file: lib/Test/Module/Used.pm
-    version: v0.2.5
+    version: v0.2.6
 requires:
   CPAN::Meta: '0'
   List::MoreUtils: '0'
@@ -41,6 +42,6 @@ resources:
   bugtracker: https://github.com/tsucchi/Test-Module-Used/issues
   homepage: https://github.com/tsucchi/Test-Module-Used
   repository: git://github.com/tsucchi/Test-Module-Used.git
-version: 0.2.5
+version: 0.2.6
 x_contributors:
   - 'CPAN Service <cpanservice@chorny.net>'

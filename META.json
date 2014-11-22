@@ -15,6 +15,7 @@
    "name" : "Test-Module-Used",
    "no_index" : {
       "directory" : [
+         "testdata",
          "t",
          "xt",
          "inc",
@@ -62,7 +63,7 @@
    "provides" : {
       "Test::Module::Used" : {
          "file" : "lib/Test/Module/Used.pm",
-         "version" : "v0.2.5"
+         "version" : "v0.2.6"
       }
    },
    "release_status" : "stable",
@@ -76,7 +77,7 @@
          "web" : "https://github.com/tsucchi/Test-Module-Used"
       }
    },
-   "version" : "0.2.5",
+   "version" : "0.2.6",
    "x_contributors" : [
       "CPAN Service <cpanservice@chorny.net>"
    ]
